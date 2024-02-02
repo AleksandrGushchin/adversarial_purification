@@ -7,14 +7,16 @@ import torch.nn.functional as F
 from torchvision import models
 from torchvision import transforms
 
-from adversarial_purification.defenses.conv_filter.defense import FCNDefense
-from adversarial_purification.defenses.transforms.jpeg import JpegDefense
-from adversarial_purification.defenses.transforms.flip import FlipDefense
-from adversarial_purification.defenses.transforms.upscale import UpscaleDefense
-from adversarial_purification.defenses.transforms.median_filter import MedianFilterDefense
-from adversarial_purification.defenses.transforms.gaussian_blur import GaussianBlurDefense
-from adversarial_purification.defenses.transforms.random_crop import RandomCropDefense
-from adversarial_purification.defenses.transforms.rotate import RotateDefense
+from defenses.conv_filter.defense import FCNDefense
+from defenses.transforms.jpeg import JpegDefense
+from defenses.transforms.flip import FlipDefense
+from defenses.transforms.upscale import UpscaleDefense
+from defenses.transforms.median_filter import MedianFilterDefense
+from defenses.transforms.gaussian_blur import GaussianBlurDefense
+from defenses.transforms.random_crop import RandomCropDefense
+from defenses.transforms.rotate import RotateDefense
+from defenses.transforms.realesrgan import RealESRGANDefense
+from defenses.transforms.mprnet import MPRNETDefense
 
 
 class ResizeDefense:
@@ -203,6 +205,10 @@ class MetricModel(torch.nn.Module):
             self.defense = RotateDefense(angle_limit=5)
         elif defense_type in ['upscale_nearest', 'upscale_bicubic', 'upscale_bilinear']:
             self.defense = UpscaleDefense(mode=defense_type[8:], upscale_factor=0.5)
+        elif defense_type == 'real-esrgan':
+            self.defense = RealESRGANDefense()
+        elif defense_type == 'mprnet':
+            self.defense = MPRNETDefense(self.device)
         else:
             self.defense = lambda x: x
 
@@ -221,3 +227,4 @@ class MetricModel(torch.nn.Module):
             return out.detach().cpu().numpy()[0][0].item()
         else:
             return out
+

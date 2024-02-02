@@ -15,7 +15,7 @@ from torchvision import transforms
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
-from adversarial_purification.model import MetricModel
+from model import MetricModel
 
 
 warnings.filterwarnings('ignore')
@@ -253,12 +253,12 @@ def get_score(model, attacked_image, source_image, save_path=None):
     )
 
 
-def test(model, dataset, device, attack_type, defense_type, q=None):
+def test(model, dataset, device, attack_type, defense_type, save=False, q=None):
     quality_score_arr = []
     gain_score_arr = []
     score_arr = []
 
-    for i, sample in tqdm(enumerate(dataset)):
+    for i, sample in tqdm(enumerate(dataset), total=len(dataset)):
         attacked_image = sample['attacked_image'].to(device)
         source_image = sample['reference_image'].to(device)
 
@@ -281,7 +281,7 @@ def test(model, dataset, device, attack_type, defense_type, q=None):
     print(f'Gain score = {gain_score}')
     print(np.mean(score_arr, axis=0))
 
-    return quality_score, gain_score
+    return quality_score, gain_score, np.mean(score_arr, axis=0)[-2], np.mean(score_arr, axis=0)[-1]
 
 
 def main():
@@ -308,6 +308,7 @@ def main():
     parser.add_argument('--plot-hist', action='store_true')
     parser.add_argument('--plot-res', action='store_true')
     parser.add_argument('--defense', type=str, default='fcn_filter')
+    parser.add_argument('--save', action='store_true', default=False)
     args = parser.parse_args()
 
     if args.plot_res:
@@ -338,8 +339,9 @@ def main():
 
     results = []
 
+    print("Defense is:", args.defense)
     for attack_type in attacks:
-        print(attack_type)
+        print("Attack type is:", attack_type)
         dataset = AttackedDataset(
             data_dir=args.data_dir, reference_dir=args.reference_dir, attacks=attacks[attack_type]
         )
@@ -347,7 +349,7 @@ def main():
         if args.plot_hist:
             plot_hist(dataset)
             return
-        print(len(dataset))
+        print("Dataset length:", len(dataset))
         if args.defense == 'jpeg-all':
             qfs = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
             quality_score_arr = []
@@ -361,8 +363,8 @@ def main():
                 )
                 model.eval()
 
-                quality_score, gain_score = test(
-                    model, dataset, args.device, attack_type, 'jpeg', q=q
+                quality_score, gain_score, psnr, ssim = test(
+                    model, dataset, args.device, attack_type, 'jpeg', args.save, q=q
                 )
                 quality_score_arr.append(quality_score)
                 gain_score_arr.append(gain_score)
@@ -371,19 +373,23 @@ def main():
                     'q': qfs,
                     'quality_score': quality_score_arr,
                     'gain_score': gain_score_arr,
+                    'psnr': psnr,
+                    'ssim': ssim
                 }
             ).to_csv(f'{attack_type}_jpeg_results.csv', index=False)
         else:
             model = MetricModel(args.device, args.metric_checkpoints, defense_type=args.defense)
             model.eval()
 
-            quality_score, gain_score = test(model, dataset, args.device, attack_type, args.defense)
+            quality_score, gain_score, psnr, ssim = test(model, dataset, args.device, attack_type, args.defense, args.save)
             results.append(
                 {
                     'attack_type': attack_type,
                     'defense_type': args.defense,
                     'quality_score': quality_score,
                     'gain_score': gain_score,
+                    'psnr': psnr,
+                    'ssim': ssim
                 }
             )
 
@@ -399,3 +405,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
