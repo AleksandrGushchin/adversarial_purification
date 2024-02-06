@@ -81,6 +81,7 @@ class AttackedDataset(Dataset):
             'attacked_image': image,
             'reference_image': reference_image,
             'attack_name': attack_name,
+            'path': img_name
         }
 
         return sample
@@ -223,13 +224,13 @@ def plot_hist(dataset):
     fig.savefig('hist.png')
 
 
-def get_score(model, attacked_image, source_image, save_path=None):
-    defense_model_score = model(attacked_image, defense=True).item()
+def get_score(model, attacked_image, source_image, save_path=None, path=None):
+    defense_model_score = model(attacked_image, defense=True, path=path).item()
     attacked_model_score = model(attacked_image, defense=False).item()
 
     source_image_score = model(source_image, defense=False).item()
 
-    cleared_image = model.defense(attacked_image)
+    cleared_image = model.defense(attacked_image, path=path)
 
     if cleared_image.shape != source_image.shape:
         cleared_image = transforms.Resize(list(source_image.shape[2:]))(cleared_image)
@@ -258,9 +259,12 @@ def test(model, dataset, device, attack_type, defense_type, save=False, q=None):
     gain_score_arr = []
     score_arr = []
 
+    diffpure_res = []
+
     for i, sample in tqdm(enumerate(dataset), total=len(dataset)):
         attacked_image = sample['attacked_image'].to(device)
         source_image = sample['reference_image'].to(device)
+        img_path = sample['path']
 
         quality_score, gain_score, score = get_score(
             model,
@@ -269,12 +273,20 @@ def test(model, dataset, device, attack_type, defense_type, save=False, q=None):
             save_path=f'../images/{attack_type}_{defense_type}_{q}.png'
             if i == random.randint(0, len(dataset))
             else None,
+            path=img_path
         )
 
         quality_score_arr.append(quality_score)
         gain_score_arr.append(gain_score)
         score_arr.append(score)
 
+        diffpure_res.append([quality_score, gain_score, score, img_path])
+
+    import json
+    with open(f"results/res_{attack_type}_{defense_type}.json", "w") as f:
+        json.dump(diffpure_res, f)
+
+    print(diffpure_res)
     quality_score = np.mean(quality_score_arr)
     gain_score = np.mean(gain_score_arr)
     print(f'Quality score = {quality_score}')
@@ -316,6 +328,7 @@ def main():
         return
 
     attacks = {
+        'amifgsm': ['amifgsm'],
         'clean_images': None,
         'color_attack': ['adv-cf'],
         'zhang': ['zhang-et-al-dists', 'zhang-et-al-lpips', 'zhang-et-al-ssim'],
@@ -392,6 +405,7 @@ def main():
                     'ssim': ssim
                 }
             )
+        break
 
     if not Path('../results.csv').exists():
         pd.DataFrame(columns=['attack_type', 'defense_type', 'quality_score', 'gain_score']).to_csv(

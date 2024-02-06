@@ -10,6 +10,7 @@ from torchvision import transforms
 from defenses.conv_filter.defense import FCNDefense
 from defenses.transforms.jpeg import JpegDefense
 from defenses.transforms.flip import FlipDefense
+from defenses.transforms.diffpure import DiffPureDefense
 from defenses.transforms.upscale import UpscaleDefense
 from defenses.transforms.median_filter import MedianFilterDefense
 from defenses.transforms.gaussian_blur import GaussianBlurDefense
@@ -17,6 +18,8 @@ from defenses.transforms.random_crop import RandomCropDefense
 from defenses.transforms.rotate import RotateDefense
 from defenses.transforms.realesrgan import RealESRGANDefense
 from defenses.transforms.mprnet import MPRNETDefense
+
+from defenses.transforms.diffpure_t import DiffPureDefenseT
 
 
 class ResizeDefense:
@@ -186,6 +189,7 @@ class MetricModel(torch.nn.Module):
         self.b = checkpoint['b'][0]
         self.model = model.to(device)
         self.lower_better = False
+        self.defense_type = defense_type
 
         if defense_type == 'baseline':
             self.defense = ResizeDefense()
@@ -209,12 +213,31 @@ class MetricModel(torch.nn.Module):
             self.defense = RealESRGANDefense()
         elif defense_type == 'mprnet':
             self.defense = MPRNETDefense(self.device)
+        elif defense_type == 'diffpure':
+            self.defense = DiffPureDefense(self.device)
+        elif defense_type == 'diffpure100':
+            self.defense = DiffPureDefenseT(100, self.device)
+        elif defense_type == 'diffpure150':
+            self.defense = DiffPureDefenseT(150, self.device)
+        elif defense_type == 'diffpure200':
+            self.defense = DiffPureDefenseT(200, self.device)
+        elif defense_type == 'diffpure250':
+            self.defense = DiffPureDefenseT(250, self.device)
+        elif defense_type == 'diffpure300':
+            self.defense = DiffPureDefenseT(300, self.device)
+        elif defense_type == 'diffpure350':
+            self.defense = DiffPureDefenseT(350, self.device)
+        elif defense_type == 'diffpure400':
+            self.defense = DiffPureDefenseT(400, self.device)
         else:
             self.defense = lambda x: x
 
-    def forward(self, image, inference=False, defense=False):
+    def forward(self, image, inference=False, defense=False, path=None):
         if defense:
-            image = self.defense(image)
+            if 'diffpure' in self.defense_type:
+                image = self.defense(image, path=path)
+            else:
+                image = self.defense(image)
 
         out = (
             self.model(transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])(image))[
